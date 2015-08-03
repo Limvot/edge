@@ -1,0 +1,82 @@
+# $Id: PKGBUILD 240358 2015-06-05 05:14:28Z pierre $
+# Maintainer: Pierre Schmitz <pierre@archlinux.de>
+
+pkgname=zsh-git
+gitname=code
+pkgrel=1
+arch=('i686' 'x86_64')
+url='http://www.zsh.org/'
+license=('custom')
+provides=('zsh')
+conflicts=('zsh')
+makedepends=('pcre' 'libcap' 'gdbm' 'git' 'yodl')
+source=('git+http://git.code.sf.net/p/zsh/code'
+        'zprofile')
+md5sums=('SKIP'
+         '24a9335edf77252a7b5f52e079f7aef7')
+
+pkgver() {
+	cd "$srcdir/$gitname"
+    git describe --long | sed -e 's:\([^-]*-g\):r\l:' -e 's:-:.:g'
+}
+prepare() {
+	cd "$srcdir/$gitname"
+    Util/preconfig
+	# Set correct keymap path
+	sed -i 's#/usr/share/keymaps#/usr/share/kbd/keymaps#g' Completion/Unix/Command/_loadkeys
+
+	# Fix usb.ids path
+	sed -i 's#/usr/share/misc/usb.ids#/usr/share/hwdata/usb.ids#g' Completion/Linux/Command/_lsusb
+
+	# Remove unneeded and conflicting completion scripts
+	for _fpath in AIX BSD Cygwin Darwin Debian Mandriva openSUSE Redhat Solaris; do
+		rm -rf Completion/$_fpath
+		sed "s#\s*Completion/$_fpath/\*/\*##g" -i Src/Zle/complete.mdd
+	done
+	rm -f  Completion/Linux/Command/_{pkgtool,rpmbuild,yast}
+	rm -f  Completion/Unix/Command/_{osc,systemd}
+}
+
+build() {
+	cd "$srcdir/$gitname"
+
+		#--docdir=/usr/share/doc/zsh \
+		#--htmldir=/usr/share/doc/zsh/html \
+	./configure --prefix=/usr \
+		--enable-etcdir=/etc/zsh \
+		--enable-zshenv=/etc/zsh/zshenv \
+		--enable-zlogin=/etc/zsh/zlogin \
+		--enable-zlogout=/etc/zsh/zlogout \
+		--enable-zprofile=/etc/zsh/zprofile \
+		--enable-zshrc=/etc/zsh/zshrc \
+		--enable-maildir-support \
+		--with-term-lib='ncursesw' \
+		--enable-multibyte \
+		--enable-function-subdirs \
+		--enable-fndir=/usr/share/zsh/functions \
+		--enable-scriptdir=/usr/share/zsh/scripts \
+		--with-tcsetpgrp \
+		--enable-pcre \
+		--enable-cap \
+		--enable-zsh-secure-free
+	make
+}
+
+check() {
+	cd "$srcdir/$gitname"
+	HOME="${srcdir}" make check
+}
+
+package() {
+	pkgdesc='A very advanced and programmable command interpreter (shell) for UNIX'
+	depends=('pcre' 'libcap' 'gdbm')
+	backup=('etc/zsh/zprofile')
+	install=zsh.install
+
+	cd "$srcdir/$gitname"
+    # remove the docs from the make install target
+	sed -i 's#install: install.bin install.modules install.fns install.man install.runhelp#install: install.bin install.modules install.fns#g' Makefile
+	make DESTDIR="${pkgdir}/" install
+	install -D -m644 "${srcdir}/zprofile" "${pkgdir}/etc/zsh/zprofile"
+	install -D -m644 LICENCE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}
